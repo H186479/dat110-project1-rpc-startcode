@@ -22,45 +22,49 @@ public class RPCServer {
 		this.services = new HashMap<Byte,RPCRemoteImpl>();
 		
 	}
-	
-	public void run() {
-		
-		// the stop RPC method is built into the server
-		RPCRemoteImpl rpcstop = new RPCServerStopImpl(RPCCommon.RPIDSTOP,this);
-		
-		System.out.println("RPC SERVER RUN - Services: " + services.size());
-			
-		connection = msgserver.accept(); 
-		
-		System.out.println("RPC SERVER ACCEPTED");
-		
-		boolean stop = false;
-		
-		while (!stop) {
-	    
-		   byte rpcid = 0;
-		   Message requestmsg, replymsg;
-		   
-		   // TODO - START
-		   // - receive a Message containing an RPC request
-		   // - extract the identifier for the RPC method to be invoked from the RPC request
-		   // - extract the method's parameter by decapsulating using the RPCUtils
-		   // - lookup the method to be invoked
-		   // - invoke the method and pass the param
-		   // - encapsulate return value 
-		   // - send back the message containing the RPC reply
-			
-		   if (true)
-				throw new UnsupportedOperationException(TODO.method());
-		   
-		   // TODO - END
 
-			// stop the server if it was stop methods that was called
-		   if (rpcid == RPCCommon.RPIDSTOP) {
-			   stop = true;
-		   }
+	public void run() {
+
+		RPCRemoteImpl rpcstop = new RPCServerStopImpl(RPCCommon.RPIDSTOP, this);
+		register(RPCCommon.RPIDSTOP, rpcstop);
+
+		System.out.println("RPC SERVER RUN - Services: " + services.size());
+
+		boolean stop = false;
+
+
+		while (!stop) {
+
+			connection = msgserver.accept();
+			System.out.println("RPC SERVER ACCEPTED");
+
+			if (connection != null) {
+				Message requestmsg, replymsg;
+
+				while ((requestmsg = connection.receive()) != null) {
+					byte[] payload = requestmsg.getData();
+					byte rpcid = payload[0];
+
+					// 1. Utfør metoden hvis den finnes
+					if (services.containsKey(rpcid)) {
+						byte[] param = RPCUtils.decapsulate(payload);
+						byte[] result = services.get(rpcid).invoke(param);
+
+						// 2. Send SVAR tilbake til klienten (Viktig!)
+						byte[] reply = RPCUtils.encapsulate(rpcid, result);
+						connection.send(new Message(reply));
+					}
+
+					// 3. Sjekk stopp ETTER at svaret er sendt
+					if (rpcid == RPCCommon.RPIDSTOP) {
+						stop = true;
+						break;
+					}
+				}
+// 4. Lukk koblingen HER slik at neste test kan kalle accept()
+				connection.close();
+			}
 		}
-	
 	}
 	
 	// used by server side method implementations to register themselves in the RPC server
